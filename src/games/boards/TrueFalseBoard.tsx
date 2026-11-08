@@ -34,7 +34,7 @@ export function TrueFalseBoard({ item, onResult, onNext, nextLabel, extras, time
   const answered = picked !== null
   const ok = picked === item.isTrue
   return (
-    <div className="board">
+    <div className={`board ${answered ? 'answered' : ''}`}>
       <div className="question-card tf-card">
         <p className="tf-label">صح أم خطأ؟</p>
         {flags.icons && (

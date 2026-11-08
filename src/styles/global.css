@@ -2022,7 +2022,7 @@ textarea:focus {
   border: none;
   background: none;
   padding: 0;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 9;
   perspective: 1000px;
   cursor: pointer;
   color: var(--ink);
@@ -2372,8 +2372,10 @@ textarea:focus {
 /* Toasts & captions */
 .toasts {
   position: fixed;
-  bottom: 1em;
-  inset-inline-end: 1em;
+  top: 4.5em;
+  left: 50%;
+  transform: translateX(-50%);
+  align-items: center;
   display: flex;
   flex-direction: column;
   gap: 0.5em;
@@ -2570,3 +2572,12 @@ textarea:focus {
 .escape h2 { font-size: 2.2em; }
 .play .lead { font-size: 1.15em; }
 .btn-icon.off { opacity: 0.55; text-decoration: line-through; }
+
+/* Once answered, shrink the question area so the explanation and "Next" fit on one 16:9 screen */
+.board.answered .options .option { min-height: 2.6em; padding: 0.35em 0.8em; font-size: 1em; box-shadow: none; }
+.board.answered .opt-key { width: 1.8em; height: 1.8em; }
+.board.answered .q-text { font-size: 1.3em; margin-bottom: 0.2em; }
+.board.answered .q-icon { font-size: 1.8em; }
+.board.answered .question-card { padding: 0.7em 1.2em; }
+.board.answered .tf-btn { min-height: 2em; font-size: 1.2em; }
+.board.answered .tf-statement { font-size: 1.35em; }

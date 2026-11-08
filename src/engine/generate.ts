@@ -151,20 +151,20 @@ export function generateContent(lesson: Lesson, a: LessonAnalysis): GeneratedCon
     const others = conceptTerms.filter((t) => normalize(t) !== normalize(c.term) && !includesNorm(c.definition, t))
     const makeFalse = i % 2 === 0 && others.length > 0
     const shown = makeFalse ? stripDiacritics(others[Math.floor(rand() * others.length)]) : c.term
-    const statement = `«${shown}»: ${c.definition}`
+    const statement = `معنى «${shown}»: ${c.definition}`
     trueFalse.push({
       kind: 'tf',
       id: id('tf'),
       statement,
       isTrue: !makeFalse,
-      correction: `«${c.term}»: ${c.definition}`,
+      correction: `معنى «${c.term}»: ${c.definition}`,
       concept: c.term,
       conceptId: c.id,
       difficulty: makeFalse ? 2 : 1,
       hint: makeFalse ? `هل هذا الوصف يخص «${shown}» فعلًا؟` : 'هل تتذكر هذا التعريف من الدرس؟',
       explanation: makeFalse ? `خطأ: هذا تعريف «${c.term}» وليس «${shown}».` : `صحيح: هذا هو تعريف «${c.term}» كما ورد في الدرس.`,
       source: c.source,
-      accessible: { simple: statement, icon: iconFor(c.term + ' ' + c.definition), speak: `صح أم خطأ؟ ${shown}: ${c.definition}` },
+      accessible: { simple: statement, icon: iconFor(c.term + ' ' + c.definition), speak: `صح أم خطأ؟ معنى ${shown}: ${c.definition}` },
     })
   })
   const conceptSources = new Set(a.concepts.map((c) => c.source))
@@ -277,7 +277,7 @@ export function generateContent(lesson: Lesson, a: LessonAnalysis): GeneratedCon
     term: c.term,
     match: truncateWords(c.definition, 12),
     source: c.source,
-    icon: iconFor(c.term + ' ' + c.definition),
+    icon: iconFor(c.term, iconFor(c.definition)),
   }))
 
   // ---------- Sequences ----------

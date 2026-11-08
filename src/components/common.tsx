@@ -199,11 +199,13 @@ interface FeedbackProps {
 export function FeedbackPanel({ correct, answer, explanation, source, icon, math, children, onNext, nextLabel = 'التالي ←' }: FeedbackProps) {
   const { flags } = useA11y()
   const nextRef = useRef<HTMLButtonElement>(null)
+  const boxRef = useRef<HTMLElement>(null)
   useEffect(() => {
-    nextRef.current?.focus()
-  }, [])
+    nextRef.current?.focus({ preventScroll: true })
+    boxRef.current?.scrollIntoView({ block: 'end', behavior: flags.reduceMotion ? 'auto' : 'smooth' })
+  }, [flags.reduceMotion])
   return (
-    <section className={`feedback ${correct ? 'feedback-ok' : 'feedback-no'}`} role="status" aria-live="polite">
+    <section ref={boxRef} className={`feedback ${correct ? 'feedback-ok' : 'feedback-no'}`} role="status" aria-live="polite">
       <div className="feedback-head">
         <span className="feedback-mark" aria-hidden>
           {correct ? '✔' : '✖'}

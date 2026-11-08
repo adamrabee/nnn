@@ -65,7 +65,7 @@ export function ChoiceBoard({ q, onResult, onNext, nextLabel, extras, timerSecon
   const answered = picked !== null
   const ok = picked === view.correctIndex
   return (
-    <div className="board">
+    <div className={`board ${answered ? 'answered' : ''}`}>
       {top}
       <div className="question-card">
         {flags.icons && (
@@ -107,9 +107,7 @@ export function ChoiceBoard({ q, onResult, onNext, nextLabel, extras, timerSecon
                 <span className="opt-shape">{OPTION_STYLE[i].shape}</span>
                 {LETTERS[i]}
               </span>
-              <span className="opt-text">
-                <RichText text={opt} />
-              </span>
+              <span className="opt-text">{opt}</span>
               {answered && i === view.correctIndex && <span className="opt-mark">✔</span>}
               {answered && i === picked && i !== view.correctIndex && <span className="opt-mark">✖</span>}
             </button>
