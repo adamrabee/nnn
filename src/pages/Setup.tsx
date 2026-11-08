@@ -4,14 +4,14 @@ import { sound } from '../audio/sound'
 import { gameById } from '../engine/catalog'
 import type { CompetitionMode, Difficulty, GameId, Team } from '../engine/types'
 import { MODE_INFO, makeTeams } from '../games/teams'
-import { PRESETS, useA11y } from '../state/a11y'
+import { useA11y } from '../state/a11y'
 import { useStore } from '../state/store'
 
 export function Setup() {
   const { gameId } = useParams<{ gameId: GameId }>()
   const nav = useNavigate()
   const { bundle, setSession } = useStore()
-  const { flags, presets, togglePreset } = useA11y()
+  const { flags } = useA11y()
   const game = gameId ? gameById(gameId) : undefined
   const [mode, setMode] = useState<CompetitionMode>(game?.category === 'adventure' ? 'cooperative' : 'teams')
   const [count, setCount] = useState(2)
@@ -48,7 +48,7 @@ export function Setup() {
           <p className="lead">{game.tagline}</p>
         </div>
         <Link to="/games" className="btn btn-ghost">
-          → كل الألعاب
+          → ألعاب الدرس
         </Link>
       </div>
 
@@ -149,14 +149,6 @@ export function Setup() {
             ))}
           </ul>
 
-          <h2>4. إعدادات إمكانية الوصول</h2>
-          <div className="preset-chips">
-            {PRESETS.map((p) => (
-              <button key={p.id} type="button" className={`btn btn-chip ${presets.includes(p.id) ? 'on' : ''}`} aria-pressed={presets.includes(p.id)} onClick={() => togglePreset(p.id)} title={p.desc}>
-                {p.icon} {p.name}
-              </button>
-            ))}
-          </div>
         </section>
       </div>
 

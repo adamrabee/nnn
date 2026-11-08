@@ -1,4 +1,5 @@
 import { ORDINAL_PREFIX } from './analyze'
+import { generateThinking } from './thinking'
 import { STOPWORDS, iconFor, normalize, seededRandom, shuffle, stripDiacritics, truncateWords, words } from './arabic'
 import type {
   ChoiceQuestion,
@@ -298,17 +299,25 @@ export function generateContent(lesson: Lesson, a: LessonAnalysis): GeneratedCon
 
   const closing = mcq.find((q) => q.difficulty === 2) ?? mcq[0] ?? null
 
+  const tf = interleave(trueFalse)
   return {
     generatedBy: 'local',
     mcq,
-    trueFalse: interleave(trueFalse),
+    trueFalse: tf,
     mistakes,
     scramble,
     pairs,
     sequences,
     closing: closing ? { ...closing, id: id('closing') } : null,
     keyLearnings: a.keyPoints.slice(0, 5).map((k) => truncateWords(k, 24)),
+    ...generateThinking(lesson, a, tf),
   }
+}
+
+/** Lessons saved by an older version lack the newer game content: fill it in from the analysis. */
+export function ensureContent(lesson: Lesson, a: LessonAnalysis, c: GeneratedContent): GeneratedContent {
+  if (c.words && c.patterns && c.detective) return c
+  return { ...c, ...generateThinking(lesson, a, c.trueFalse) }
 }
 
 export const LETTERS = ['أ', 'ب', 'ج', 'د']

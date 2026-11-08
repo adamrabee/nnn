@@ -134,6 +134,96 @@ export interface GeneratedContent {
   sequences: SequenceItem[]
   closing: ChoiceQuestion | null
   keyLearnings: string[]
+  // Thinking & word games (added in v2; older saved lessons are filled in on load)
+  patterns: PatternItem[]
+  oddOne: OddOneItem[]
+  logic: LogicItem[]
+  missing: MissingItem[]
+  critical: CriticalItem[]
+  build: BuildItem[]
+  detective: DetectiveCase[]
+  words: WordItem[]
+}
+
+/** "What comes next?" — tiles with a rule; the answer fills the "?" slot. */
+export interface PatternItem {
+  id: string
+  kind: 'numeric' | 'sequence' | 'analogy'
+  title: string
+  shown: string[]
+  answer: string
+  options: string[]
+  rule: string
+  source: string
+}
+
+export interface OddOneItem {
+  id: string
+  items: string[]
+  oddIndex: number
+  group: string
+  oddGroup: string
+  explanation: string
+  source: string
+}
+
+/** Deduction: candidates are crossed out as clues are revealed. */
+export interface LogicItem {
+  id: string
+  candidates: string[]
+  clues: string[]
+  answer: string
+  explanation: string
+  source: string
+}
+
+/** A sentence split into puzzle pieces with one piece missing. */
+export interface MissingItem {
+  id: string
+  pieces: string[]
+  missingIndex: number
+  options: string[]
+  explanation: string
+  source: string
+}
+
+export interface CriticalItem {
+  id: string
+  scenario: string
+  question: string
+  options: string[]
+  correctIndex: number
+  /** Ideas the teacher listens for when students justify their answer. */
+  rubric: string[]
+  explanation: string
+  source: string
+}
+
+export interface BuildItem {
+  id: string
+  prompt: string
+  chunks: string[]
+  distractors: string[]
+  explanation: string
+  source: string
+}
+
+export interface DetectiveCase {
+  id: string
+  story: string
+  suspects: string[]
+  culprit: string
+  evidence: { clue: string; question: TrueFalseItem }[]
+  explanation: string
+  source: string
+}
+
+/** Single words for the crossword and word search (written without «ال»). */
+export interface WordItem {
+  id: string
+  word: string
+  term: string
+  clue: string
 }
 
 export type GameId =
@@ -146,6 +236,16 @@ export type GameId =
   | 'scramble'
   | 'spot-mistake'
   | 'escape-room'
+  | 'patterns'
+  | 'odd-one-out'
+  | 'logic'
+  | 'missing-piece'
+  | 'critical'
+  | 'crossword'
+  | 'wheel'
+  | 'build-answer'
+  | 'detective'
+  | 'word-search'
 
 export type CompetitionMode =
   | 'pvp'

@@ -1,5 +1,6 @@
-// Sound effects synthesised with the Web Audio API: no audio files, works offline.
-// Every sound has a text caption, so it can also be shown visually (hearing support).
+// Calm, clean interface sounds synthesised with the Web Audio API (no files, works offline).
+// Design: mellow marimba / bell voices, soft attacks, short decays, a gentle
+// room reverb, and a compressor + low-pass on the master so nothing is sharp or loud.
 
 export type SoundName =
   | 'click'
@@ -19,6 +20,7 @@ export type SoundName =
   | 'applause'
   | 'hint'
   | 'turn'
+  | 'spin'
 
 export const SOUND_CAPTION: Record<SoundName, string> = {
   click: 'نقرة',
@@ -27,41 +29,48 @@ export const SOUND_CAPTION: Record<SoundName, string> = {
   wrong: 'ليست الإجابة الصحيحة',
   flip: 'قلب بطاقة',
   match: 'تطابق!',
-  reveal: 'كشف الإجابة',
+  reveal: 'كشف',
   stage: 'اكتملت المرحلة',
   unlock: 'فُتح القفل!',
   win: 'نهاية اللعبة — مبروك!',
-  tick: 'الوقت يقترب من النهاية',
-  star: 'نجمة جديدة',
+  tick: 'تكّة',
+  star: 'نقاط جديدة',
   whoosh: 'انتقال',
   drumroll: 'لحظة الاختيار…',
-  applause: 'تصفيق',
+  applause: 'أحسنتم!',
   hint: 'تلميح',
-  turn: 'دور فريق جديد',
+  turn: 'دور جديد',
+  spin: 'العجلة تدور',
 }
 
 interface Settings {
   effects: boolean
   music: boolean
-  volume: number // 0..1
+  volume: number
   gentle: boolean
 }
 
 type CueListener = (name: SoundName) => void
 
+// Note frequencies (C major / pentatonic — consonant and friendly).
+const N = { C4: 261.63, E4: 329.63, G4: 392, A4: 440, C5: 523.25, D5: 587.33, E5: 659.25, G5: 783.99, A5: 880, C6: 1046.5, E6: 1318.5, G6: 1568 }
+
 class SoundEngine {
   private ctx: AudioContext | null = null
-  private master: GainNode | null = null
+  private out: GainNode | null = null
+  private dry: GainNode | null = null
+  private wet: GainNode | null = null
   private musicGain: GainNode | null = null
   private musicTimer: number | null = null
-  private settings: Settings = { effects: true, music: false, volume: 0.7, gentle: false }
+  private noiseBuf: AudioBuffer | null = null
+  private lastTick = 0
+  private settings: Settings = { effects: true, music: false, volume: 0.8, gentle: false }
   private listeners = new Set<CueListener>()
 
   configure(s: Partial<Settings>) {
     const wasMusic = this.settings.music
     this.settings = { ...this.settings, ...s }
-    if (this.master) this.master.gain.value = this.settings.volume
-    if (this.musicGain) this.musicGain.gain.value = this.settings.gentle ? 0.05 : 0.09
+    if (this.out) this.out.gain.value = this.settings.volume
     if (this.settings.music && !wasMusic) this.startMusic()
     if (!this.settings.music && wasMusic) this.stopMusic()
   }
@@ -78,10 +87,29 @@ class SoundEngine {
     if (!this.ctx) {
       const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
       if (!AC) return
-      this.ctx = new AC()
-      this.master = this.ctx.createGain()
-      this.master.gain.value = this.settings.volume
-      this.master.connect(this.ctx.destination)
+      const ctx = new AC()
+      this.ctx = ctx
+      // master: (dry + reverb) → low-pass → compressor → volume → speakers
+      const comp = ctx.createDynamicsCompressor()
+      comp.threshold.value = -20
+      comp.knee.value = 18
+      comp.ratio.value = 3
+      comp.attack.value = 0.005
+      comp.release.value = 0.2
+      const lp = ctx.createBiquadFilter()
+      lp.type = 'lowpass'
+      lp.frequency.value = 7000
+      this.out = ctx.createGain()
+      this.out.gain.value = this.settings.volume
+      lp.connect(comp).connect(this.out).connect(ctx.destination)
+      this.dry = ctx.createGain()
+      this.dry.connect(lp)
+      const verb = ctx.createConvolver()
+      verb.buffer = this.impulse(1.4)
+      this.wet = ctx.createGain()
+      this.wet.gain.value = 0.18
+      this.wet.connect(verb).connect(lp)
+      this.noiseBuf = this.makeNoise()
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume()
     if (this.settings.music && this.musicTimer === null) this.startMusic()
@@ -91,167 +119,246 @@ class SoundEngine {
     this.listeners.forEach((l) => l(name))
     if (!this.settings.effects) return
     this.unlock()
-    const ctx = this.ctx
-    if (!ctx || !this.master) return
-    const g = this.settings.gentle
-    // Loud / sudden sounds are skipped entirely in gentle (low stimulation) mode.
-    if (g && (name === 'applause' || name === 'drumroll' || name === 'tick')) return
-    const t = ctx.currentTime + 0.01
-    const v = g ? 0.5 : 1
+    if (!this.ctx || !this.dry) return
+    const t = this.ctx.currentTime + 0.01
+    const v = this.settings.gentle ? 0.6 : 1
     switch (name) {
       case 'click':
-        this.tone(660, t, 0.05, 'triangle', 0.18 * v)
+        this.marimba(N.A5, t, 0.05 * v, 0.08)
         break
       case 'select':
-        this.tone(520, t, 0.07, 'triangle', 0.22 * v)
-        this.tone(780, t + 0.05, 0.08, 'triangle', 0.18 * v)
+        this.marimba(N.E5, t, 0.07 * v, 0.14)
+        this.marimba(N.A5, t + 0.05, 0.06 * v, 0.16)
         break
       case 'turn':
-        this.tone(440, t, 0.1, 'sine', 0.2 * v)
-        this.tone(660, t + 0.1, 0.14, 'sine', 0.2 * v)
+        this.marimba(N.C5, t, 0.08 * v, 0.25)
+        this.marimba(N.G5, t + 0.09, 0.07 * v, 0.3)
         break
       case 'correct':
-        ;[523.25, 659.25, 783.99, 1046.5].forEach((f, i) => this.tone(f, t + i * 0.08, g ? 0.25 : 0.32, 'triangle', 0.24 * v))
-        if (!g) this.tone(1567.98, t + 0.34, 0.4, 'sine', 0.08)
+        ;[N.C5, N.E5, N.G5].forEach((f, i) => this.marimba(f, t + i * 0.075, 0.1 * v, 0.45))
+        this.bell(N.C6, t + 0.22, 0.06 * v, 0.9)
         break
       case 'wrong':
-        // Soft, low and short — informative, not punishing.
-        this.tone(330, t, 0.16, 'sine', 0.2 * v)
-        this.tone(262, t + 0.15, 0.26, 'sine', 0.18 * v)
+        // Soft, low, short: informative — never punishing.
+        this.marimba(N.E4, t, 0.09 * v, 0.28, true)
+        this.marimba(N.C4, t + 0.13, 0.08 * v, 0.4, true)
         break
       case 'flip':
-        this.sweep(300, 900, t, 0.09, 'triangle', 0.16 * v)
+        this.swish(t, 0.12, 0.03 * v, 1800, 4200)
+        this.marimba(N.D5, t + 0.04, 0.03 * v, 0.08)
         break
       case 'match':
-        this.tone(784, t, 0.12, 'triangle', 0.22 * v)
-        this.tone(1175, t + 0.09, 0.22, 'triangle', 0.2 * v)
+        this.marimba(N.G5, t, 0.08 * v, 0.3)
+        this.marimba(N.C6, t + 0.08, 0.08 * v, 0.45)
         break
       case 'reveal':
-        this.sweep(400, 1200, t, 0.25, 'sine', 0.16 * v)
+        ;[N.C5, N.D5, N.E5, N.G5].forEach((f, i) => this.marimba(f, t + i * 0.05, 0.05 * v, 0.25))
         break
       case 'hint':
-        ;[880, 1108, 1318].forEach((f, i) => this.tone(f, t + i * 0.06, 0.18, 'sine', 0.1 * v))
+        this.bell(N.E6, t, 0.04 * v, 0.7)
+        this.bell(N.G6, t + 0.09, 0.03 * v, 0.7)
         break
       case 'star':
-        ;[1318.5, 1760, 2093].forEach((f, i) => this.tone(f, t + i * 0.07, 0.3, 'sine', 0.13 * v))
+        this.bell(N.G5 * 2, t, 0.045 * v, 0.6)
         break
       case 'whoosh':
-        this.noise(t, 0.35, 0.12 * v, 600, 3000)
+        this.swish(t, 0.28, 0.035 * v, 500, 2400)
+        break
+      case 'spin':
+        this.swish(t, 0.7, 0.04 * v, 300, 1600)
         break
       case 'stage':
-        ;[392, 523.25, 659.25, 783.99].forEach((f, i) => this.tone(f, t + i * 0.11, 0.35, 'triangle', 0.22 * v))
+        ;[N.C5, N.E5, N.G5, N.C6].forEach((f, i) => this.marimba(f, t + i * 0.1, 0.09 * v, 0.6))
+        this.bell(N.E6, t + 0.42, 0.04 * v, 1)
         break
       case 'unlock':
-        this.tone(220, t, 0.06, 'square', 0.12 * v)
-        this.tone(330, t + 0.08, 0.06, 'square', 0.12 * v)
-        ;[523.25, 783.99, 1046.5, 1318.5].forEach((f, i) => this.tone(f, t + 0.2 + i * 0.09, 0.45, 'triangle', 0.22 * v))
+        this.wood(t, 0.06 * v)
+        this.wood(t + 0.09, 0.06 * v)
+        ;[N.C5, N.G5, N.C6, N.E6].forEach((f, i) => this.marimba(f, t + 0.22 + i * 0.08, 0.08 * v, 0.6))
         break
-      case 'tick':
-        this.tone(1000, t, 0.03, 'square', 0.08)
+      case 'tick': {
+        // Wheel/timer tick: tiny wooden click, rate-limited so fast spins stay soft.
+        const now = this.ctx.currentTime
+        if (now - this.lastTick < 0.03) return
+        this.lastTick = now
+        this.wood(t, 0.05 * v)
         break
+      }
       case 'drumroll':
-        for (let i = 0; i < 16; i++) this.noise(t + i * 0.05, 0.05, 0.08 + i * 0.006, 150, 900)
-        this.noise(t + 0.85, 0.25, 0.25, 80, 600)
+        for (let i = 0; i < 10; i++) this.wood(t + i * 0.07 * (1 - i * 0.04), 0.035 * v)
         break
       case 'applause':
-        for (let i = 0; i < 40; i++) this.noise(t + Math.random() * 1.6, 0.04, 0.05 + Math.random() * 0.06, 1000, 5000)
+        ;[N.G5, N.C6, N.E6, N.G6].forEach((f, i) => this.bell(f, t + i * 0.12, 0.035 * v, 1.1))
         break
       case 'win': {
-        const melody = [523.25, 659.25, 783.99, 1046.5, 783.99, 1046.5]
-        const durs = [0.15, 0.15, 0.15, 0.3, 0.15, 0.6]
+        const melody = [N.C5, N.E5, N.G5, N.C6, N.G5, N.C6]
+        const d = [0.14, 0.14, 0.14, 0.32, 0.14, 0.6]
         let acc = 0
         melody.forEach((f, i) => {
-          this.tone(f, t + acc, durs[i] + 0.1, 'triangle', 0.24 * v)
-          this.tone(f / 2, t + acc, durs[i] + 0.1, 'sine', 0.12 * v)
-          acc += durs[i]
+          this.marimba(f, t + acc, 0.09 * v, d[i] + 0.35)
+          acc += d[i]
         })
+        this.bell(N.E6, t + acc - 0.5, 0.04 * v, 1.4)
         break
       }
     }
   }
 
-  private tone(freq: number, start: number, dur: number, type: OscillatorType, vol: number) {
+  /** Marimba-like pluck: sine fundamental + soft 4th partial, quick exponential decay. */
+  private marimba(freq: number, start: number, vol: number, decay: number, dark = false) {
     const ctx = this.ctx!
-    const o = ctx.createOscillator()
-    const gn = ctx.createGain()
-    o.type = type
-    o.frequency.setValueAtTime(freq, start)
-    gn.gain.setValueAtTime(0.0001, start)
-    gn.gain.exponentialRampToValueAtTime(vol, start + 0.015)
-    gn.gain.exponentialRampToValueAtTime(0.0001, start + dur)
-    o.connect(gn).connect(this.master!)
-    o.start(start)
-    o.stop(start + dur + 0.05)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, start)
+    g.gain.exponentialRampToValueAtTime(vol, start + 0.006)
+    g.gain.exponentialRampToValueAtTime(0.0001, start + decay)
+    const o1 = ctx.createOscillator()
+    o1.type = 'sine'
+    o1.frequency.value = freq
+    o1.connect(g)
+    if (!dark) {
+      const o2 = ctx.createOscillator()
+      const g2 = ctx.createGain()
+      o2.type = 'sine'
+      o2.frequency.value = freq * 4
+      g2.gain.value = 0.12
+      o2.connect(g2).connect(g)
+      o2.start(start)
+      o2.stop(start + decay + 0.05)
+    }
+    this.route(g)
+    o1.start(start)
+    o1.stop(start + decay + 0.05)
   }
 
-  private sweep(from: number, to: number, start: number, dur: number, type: OscillatorType, vol: number) {
+  /** Soft bell: sine + inharmonic partial, long gentle tail. */
+  private bell(freq: number, start: number, vol: number, decay: number) {
     const ctx = this.ctx!
-    const o = ctx.createOscillator()
-    const gn = ctx.createGain()
-    o.type = type
-    o.frequency.setValueAtTime(from, start)
-    o.frequency.exponentialRampToValueAtTime(to, start + dur)
-    gn.gain.setValueAtTime(0.0001, start)
-    gn.gain.exponentialRampToValueAtTime(vol, start + 0.02)
-    gn.gain.exponentialRampToValueAtTime(0.0001, start + dur)
-    o.connect(gn).connect(this.master!)
-    o.start(start)
-    o.stop(start + dur + 0.05)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, start)
+    g.gain.exponentialRampToValueAtTime(vol, start + 0.01)
+    g.gain.exponentialRampToValueAtTime(0.0001, start + decay)
+    ;[1, 2.76].forEach((m, i) => {
+      const o = ctx.createOscillator()
+      const pg = ctx.createGain()
+      o.type = 'sine'
+      o.frequency.value = freq * m
+      pg.gain.value = i === 0 ? 1 : 0.18
+      o.connect(pg).connect(g)
+      o.start(start)
+      o.stop(start + decay + 0.05)
+    })
+    this.route(g)
   }
 
-  private noise(start: number, dur: number, vol: number, low: number, high: number) {
+  /** Short wooden tick (band-passed noise + tiny sine). */
+  private wood(start: number, vol: number) {
     const ctx = this.ctx!
-    const len = Math.max(1, Math.floor(ctx.sampleRate * dur))
-    const buf = ctx.createBuffer(1, len, ctx.sampleRate)
-    const data = buf.getChannelData(0)
-    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len)
     const src = ctx.createBufferSource()
-    src.buffer = buf
+    src.buffer = this.noiseBuf
     const bp = ctx.createBiquadFilter()
     bp.type = 'bandpass'
-    bp.frequency.value = (low + high) / 2
-    bp.Q.value = (low + high) / 2 / (high - low)
-    const gn = ctx.createGain()
-    gn.gain.value = vol
-    src.connect(bp).connect(gn).connect(this.master!)
-    src.start(start)
+    bp.frequency.value = 2400
+    bp.Q.value = 6
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(vol, start)
+    g.gain.exponentialRampToValueAtTime(0.0001, start + 0.035)
+    src.connect(bp).connect(g)
+    this.route(g, false)
+    src.start(start, Math.random() * 0.5, 0.05)
+    this.marimba(1250, start, vol * 0.5, 0.04, true)
   }
 
-  // Calm generative background music: slow pentatonic arpeggio over soft pads.
+  /** Airy swish for transitions and the spinning wheel. */
+  private swish(start: number, dur: number, vol: number, from: number, to: number) {
+    const ctx = this.ctx!
+    const src = ctx.createBufferSource()
+    src.buffer = this.noiseBuf
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'bandpass'
+    lp.Q.value = 0.8
+    lp.frequency.setValueAtTime(from, start)
+    lp.frequency.exponentialRampToValueAtTime(to, start + dur * 0.6)
+    lp.frequency.exponentialRampToValueAtTime(from, start + dur)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, start)
+    g.gain.linearRampToValueAtTime(vol, start + dur * 0.4)
+    g.gain.linearRampToValueAtTime(0.0001, start + dur)
+    src.connect(lp).connect(g)
+    this.route(g)
+    src.start(start, 0, dur + 0.05)
+  }
+
+  private route(node: AudioNode, reverb = true) {
+    node.connect(this.dry!)
+    if (reverb) node.connect(this.wet!)
+  }
+
+  private makeNoise() {
+    const ctx = this.ctx!
+    const buf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate)
+    const d = buf.getChannelData(0)
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
+    return buf
+  }
+
+  private impulse(seconds: number) {
+    const ctx = this.ctx!
+    const len = Math.floor(ctx.sampleRate * seconds)
+    const buf = ctx.createBuffer(2, len, ctx.sampleRate)
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch)
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3)
+    }
+    return buf
+  }
+
+  // Optional calm background: slow, quiet pentatonic notes over soft pads.
   private startMusic() {
-    if (!this.ctx || !this.master || this.musicTimer !== null) return
+    if (!this.ctx || !this.dry || this.musicTimer !== null) return
     this.musicGain = this.ctx.createGain()
-    this.musicGain.gain.value = this.settings.gentle ? 0.05 : 0.09
-    this.musicGain.connect(this.master)
-    const scale = [261.63, 293.66, 329.63, 392, 440, 523.25, 587.33]
-    const chords = [[261.63, 329.63, 392], [220, 261.63, 329.63], [174.61, 220, 261.63], [196, 246.94, 293.66]]
+    this.musicGain.gain.value = this.settings.gentle ? 0.25 : 0.4
+    this.musicGain.connect(this.dry)
+    this.musicGain.connect(this.wet!)
+    const scale = [N.C5, N.D5, N.E5, N.G5, N.A5]
+    const chords = [[N.C4, N.E4, N.G4], [N.A4 / 2, N.C4, N.E4], [174.61, N.A4 / 2, N.C4], [196, 246.94, 293.66]]
     let step = 0
     const tick = () => {
       const ctx = this.ctx!
       const t = ctx.currentTime + 0.05
-      if (step % 8 === 0) {
-        const chord = chords[(step / 8) % chords.length]
-        chord.forEach((f) => this.musicNote(f / 2, t, 3.6, 'sine', 0.35))
-      }
-      if (Math.random() > 0.35) this.musicNote(scale[Math.floor(Math.random() * scale.length)], t, 0.9, 'triangle', 0.28)
+      if (step % 8 === 0) chords[(step / 8) % chords.length].forEach((f) => this.pad(f, t, 4))
+      if (step % 2 === 0 && Math.random() > 0.4) this.padNote(scale[Math.floor(Math.random() * scale.length)], t)
       step++
     }
     tick()
-    this.musicTimer = window.setInterval(tick, 450)
+    this.musicTimer = window.setInterval(tick, 500)
   }
 
-  private musicNote(freq: number, start: number, dur: number, type: OscillatorType, vol: number) {
+  private pad(freq: number, start: number, dur: number) {
     const ctx = this.ctx!
     const o = ctx.createOscillator()
-    const gn = ctx.createGain()
-    o.type = type
+    const g = ctx.createGain()
+    o.type = 'sine'
     o.frequency.value = freq
-    gn.gain.setValueAtTime(0.0001, start)
-    gn.gain.linearRampToValueAtTime(vol, start + Math.min(0.4, dur / 3))
-    gn.gain.linearRampToValueAtTime(0.0001, start + dur)
-    o.connect(gn).connect(this.musicGain!)
+    g.gain.setValueAtTime(0.0001, start)
+    g.gain.linearRampToValueAtTime(0.05, start + 1.2)
+    g.gain.linearRampToValueAtTime(0.0001, start + dur)
+    o.connect(g).connect(this.musicGain!)
     o.start(start)
     o.stop(start + dur + 0.05)
+  }
+
+  private padNote(freq: number, start: number) {
+    const ctx = this.ctx!
+    const o = ctx.createOscillator()
+    const g = ctx.createGain()
+    o.type = 'sine'
+    o.frequency.value = freq
+    g.gain.setValueAtTime(0.0001, start)
+    g.gain.exponentialRampToValueAtTime(0.035, start + 0.02)
+    g.gain.exponentialRampToValueAtTime(0.0001, start + 1.4)
+    o.connect(g).connect(this.musicGain!)
+    o.start(start)
+    o.stop(start + 1.5)
   }
 
   private stopMusic() {
@@ -259,8 +366,8 @@ class SoundEngine {
     this.musicTimer = null
     if (this.musicGain && this.ctx) {
       const g = this.musicGain
-      g.gain.linearRampToValueAtTime(0.0001, this.ctx.currentTime + 0.5)
-      window.setTimeout(() => g.disconnect(), 700)
+      g.gain.linearRampToValueAtTime(0.0001, this.ctx.currentTime + 0.6)
+      window.setTimeout(() => g.disconnect(), 800)
     }
     this.musicGain = null
   }

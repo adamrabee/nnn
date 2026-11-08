@@ -66,7 +66,7 @@ export function LessonInput() {
         result = buildLocal(fresh)
       }
       await animate(PIPELINE.length - 3)
-      setBundle({ lesson: fresh, ...result })
+      setBundle({ lesson: fresh, ...result, remoteId: bundle?.lesson.id === fresh.id ? bundle.remoteId : undefined })
       sound.play('stage')
       nav('/games')
     } catch (e) {

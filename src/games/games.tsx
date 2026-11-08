@@ -10,6 +10,8 @@ import { MistakeBoard } from './boards/MistakeBoard'
 import { ScrambleBoard } from './boards/ScrambleBoard'
 import { SequenceBoard } from './boards/SequenceBoard'
 import { TrueFalseBoard } from './boards/TrueFalseBoard'
+import { BuildBoard, CriticalBoard, LogicBoard, MissingBoard, OddOneBoard, PatternBoard } from './boards2/ThinkingBoards'
+import { CrosswordBoard, DetectiveBoard, WordSearchBoard } from './boards2/WordBoards'
 import { ScoringBar } from './ScoringBar'
 import { useGame } from './session'
 
@@ -54,6 +56,26 @@ export function GameRunner(props: RunnerProps) {
       return <Millionaire {...props} />
     case 'escape-room':
       return <EscapeRoom {...props} />
+    case 'patterns':
+      return <Rounds {...props} items={content.patterns} render={(q, p) => <PatternBoard key={q.id} item={q} {...p} />} label={(q) => q.title} />
+    case 'odd-one-out':
+      return <Rounds {...props} items={content.oddOne} render={(q, p) => <OddOneBoard key={q.id} item={q} {...p} />} label={(q) => q.group} />
+    case 'logic':
+      return <Rounds {...props} items={content.logic} render={(q, p) => <LogicBoard key={q.id} item={q} {...p} />} label={(q) => q.answer} />
+    case 'missing-piece':
+      return <Rounds {...props} items={content.missing} render={(q, p) => <MissingBoard key={q.id} item={q} {...p} />} label={(q) => q.pieces[q.missingIndex]} />
+    case 'critical':
+      return <Rounds {...props} items={content.critical} render={(q, p) => <CriticalBoard key={q.id} item={q} {...p} />} label={(q) => q.scenario} />
+    case 'build-answer':
+      return <Rounds {...props} items={content.build} render={(q, p) => <BuildBoard key={q.id} item={q} {...p} />} label={(q) => q.prompt} />
+    case 'detective':
+      return <Rounds {...props} items={content.detective} render={(q, p) => <DetectiveBoard key={q.id} item={q} {...p} />} label={(q) => `قضية: ${q.culprit}`} />
+    case 'crossword':
+      return <SingleBoard {...props} kind="crossword" />
+    case 'word-search':
+      return <SingleBoard {...props} kind="word-search" />
+    case 'wheel':
+      return null
   }
 }
 
@@ -103,9 +125,11 @@ function Rounds<T extends { id: string }>({
   )
 }
 
-function SingleBoard({ content, onFinish, setProgress, kind }: RunnerProps & { kind: 'matching' | 'memory' }) {
+function SingleBoard({ content, lesson, onFinish, setProgress, kind }: RunnerProps & { kind: 'matching' | 'memory' | 'crossword' | 'word-search' }) {
   useEffect(() => setProgress({ current: 1, total: 1 }), [setProgress])
   const common = { onResult: () => {}, onNext: onFinish, nextLabel: 'إنهاء اللعبة 🏁' }
+  if (kind === 'crossword') return <CrosswordBoard words={content.words} seed={lesson.id} {...common} />
+  if (kind === 'word-search') return <WordSearchBoard words={content.words} seed={lesson.id} {...common} />
   return kind === 'matching' ? <MatchingBoard pairs={content.pairs} {...common} /> : <MemoryBoard pairs={content.pairs} {...common} />
 }
 

@@ -2,12 +2,12 @@ import type { CompetitionMode, Team } from '../engine/types'
 
 /** Team look: colour + shape + icon, so teams are never distinguished by colour alone. */
 export const TEAM_STYLES = [
-  { name: 'فريق الصقور', color: '#6d5efc', shape: '●', icon: '🦅' },
-  { name: 'فريق النجوم', color: '#f59e0b', shape: '★', icon: '⭐' },
-  { name: 'فريق الموج', color: '#0ea5e9', shape: '▲', icon: '🌊' },
-  { name: 'فريق الأرز', color: '#10b981', shape: '■', icon: '🌲' },
-  { name: 'فريق البرق', color: '#ef4444', shape: '◆', icon: '⚡' },
-  { name: 'فريق القمر', color: '#ec4899', shape: '⬟', icon: '🌙' },
+  { name: 'فريق الصقور', color: '#1d4ed8', shape: '●', icon: '🦅' },
+  { name: 'فريق النجوم', color: '#b45309', shape: '★', icon: '⭐' },
+  { name: 'فريق الموج', color: '#0f766e', shape: '▲', icon: '🌊' },
+  { name: 'فريق الأرز', color: '#15803d', shape: '■', icon: '🌲' },
+  { name: 'فريق البرق', color: '#b91c1c', shape: '◆', icon: '⚡' },
+  { name: 'فريق القمر', color: '#6d28d9', shape: '⬟', icon: '🌙' },
 ]
 
 export const MODE_INFO: Record<CompetitionMode, { name: string; icon: string; desc: string }> = {
