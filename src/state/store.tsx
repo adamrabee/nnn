@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { GeneratedContent, Lesson, LessonAnalysis, SessionConfig, Team } from '../engine/types'
+import { ensureContent } from '../engine/generate'
 import type { ResultEntry } from '../games/session'
 
 export interface RunResult {
@@ -12,6 +13,8 @@ export interface LessonBundle {
   analysis: LessonAnalysis
   content: GeneratedContent
   aiNotes: string[]
+  /** Set when the lesson is saved in the Supabase library. */
+  remoteId?: string
 }
 
 interface Ctx {
@@ -28,12 +31,14 @@ interface Ctx {
 
 // Only the TEACHER's lesson content is kept on this device so a refresh does not lose it.
 // No student data, scores or names are ever stored.
-const KEY = 'malaab:lesson'
+const KEY = 'droos:lesson'
 
 function load(): LessonBundle | null {
   try {
     const raw = localStorage.getItem(KEY)
-    return raw ? JSON.parse(raw) : null
+    if (!raw) return null
+    const b = JSON.parse(raw) as LessonBundle
+    return { ...b, content: ensureContent(b.lesson, b.analysis, b.content) }
   } catch {
     return null
   }

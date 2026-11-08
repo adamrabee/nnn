@@ -73,6 +73,8 @@ function headingKind(heading: string): 'process' | 'class' | null {
 
 function titleFrom(heading: string, fallback: string): string {
   const t = cleanLine(heading.replace(/[:：]\s*$/, ''))
+    .replace(/\s*(?:بالمراحل|بالخطوات|المراحل|الخطوات)?\s*(?:التالية|الآتية|كالتالي|كالآتي)$/u, '')
+    .trim()
   return t.length > 0 ? t : fallback
 }
 

@@ -80,7 +80,7 @@ interface Stored {
   manual: Partial<A11yFlags>
 }
 
-const KEY = 'malaab:a11y'
+const KEY = 'droos:a11y'
 
 function load(): Stored {
   try {

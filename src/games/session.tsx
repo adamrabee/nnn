@@ -25,6 +25,8 @@ export interface GameApi {
   /** Marks a wrong attempt: resets the streak only — never removes points. */
   wrong: (teamId?: string) => void
   bonus: (kind: 'explain' | 'teamwork' | 'complete', teamId?: string) => void
+  /** Plain points (e.g. rubric ticks, unused evidence). */
+  addPoints: (points: number, teamId?: string) => void
   record: (r: ResultEntry) => void
   nextTurn: () => void
   pickRandomTeam: () => void
@@ -127,8 +129,18 @@ export function GameSessionProvider({ initialTeams, mode, children }: { initialT
     sound.play('turn')
   }, [teams.length, mode, pickRandomTeam])
 
+  const addPoints = useCallback(
+    (points: number, teamId?: string) => {
+      const id = teamId ?? activeTeam.id
+      sound.play('star')
+      setTeams((ts) => ts.map((t) => (t.id === id ? { ...t, score: t.score + points } : t)))
+    },
+    [activeTeam],
+  )
+
   const api = useMemo<GameApi>(
     () => ({
+      addPoints,
       teams,
       mode,
       activeTeam,
@@ -148,7 +160,7 @@ export function GameSessionProvider({ initialTeams, mode, children }: { initialT
       },
       rolling,
     }),
-    [teams, mode, activeTeam, correct, wrong, bonus, nextTurn, pickRandomTeam, results, toasts, pushToast, rolling],
+    [teams, mode, activeTeam, correct, wrong, bonus, addPoints, nextTurn, pickRandomTeam, results, toasts, pushToast, rolling],
   )
   return <SessionContext.Provider value={api}>{children}</SessionContext.Provider>
 }
